@@ -1,3 +1,72 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for tomcat
+
+- name: Install Java
+  ansible.builtin.apt:
+    name: "{{ java_package }}"
+    state: present
+    update_cache: true
+
+- name: Create tomcat group
+  ansible.builtin.group:
+    name: "{{ tomcat_group }}"
+    system: true
+    state: present
+
+- name: Create tomcat user
+  ansible.builtin.user:
+    name: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    home: "{{ home }}"
+    shell: /bin/false
+    system: true
+    state: present
+
+- name: Create tomcat home directory
+  ansible.builtin.file:
+    path: "{{ home }}"
+    state: directory
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    mode: '0755'
+
+- name: Download Tomcat tarball
+  ansible.builtin.get_url:
+    url: "{{ url }}"
+    dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
+
+- name: Extract Tomcat
+  ansible.builtin.unarchive:
+    src: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
+    dest: "{{ home }}"
+    remote_src: yes
+    extra_opts:
+      - --strip-components=1
+
+- name: Change ownership of tomcat directory
+  ansible.builtin.file:
+    path: "{{ home }}"
+    state: directory
+    recurse: yes
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+
+- name: Provide execute permission to tomcat bin scripts
+  ansible.builtin.file:
+    path: "{{ home }}/bin"
+    state: directory
+    recurse: yes
+    mode: '0755'
+
+- name: Create tomcat systemd service file
+  ansible.builtin.template:
+    src: tomcat.service.j2
+    dest: /etc/systemd/system/tomcat.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd daemon
+    - Start tomcat service
+
